@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block content %}
+<section id="overview" class="hero-grid">
+  <div class="hero-copy card">
+    <p class="eyebrow">ONE PLACE FOR THE WHOLE CYCLE</p>
+    <h2>Research → shortlist → essays → scholarships → submit.</h2>
+    <p class="muted-text">The dashboard stores application state. Ruflo agents can work against the same state through <code>/api/context</code>.</p>
+  </div>
+  <div class="stats-grid">
+    <div class="stat card"><strong>{{ stats.universities }}</strong><span>Universities</span></div>
+    <div class="stat card"><strong>{{ stats.applications_ready }}</strong><span>Ready / submitted</span></div>
+    <div class="stat card"><strong>{{ stats.scholarships }}</strong><span>Scholarships</span></div>
+    <div class="stat card"><strong>{{ stats.documents_complete }}/{{ stats.documents_total }}</strong><span>Documents complete</span></div>
+  </div>
+</section>
+
+<section id="universities" class="section">
+  <div class="section-heading"><div><p class="eyebrow">PIPELINE</p><h2>Universities</h2></div></div>
+  <div class="split">
+    <div class="card table-wrap">
+      <table>
+        <thead><tr><th>University</th><th>Application deadline</th><th>Status</th><th>Link</th></tr></thead>
+        <tbody>
+        {% for u in universities %}
+          <tr>
+            <td><strong>{{ u.name }}</strong><br><span class="tiny">{{ u.country }}</span></td>
+            <td>{{ u.application_deadline or 'TBD' }}<br><span class="badge {{ u.deadline_meta.class }}">{{ u.deadline_meta.label }}</span></td>
+            <td>
+              <form method="post" action="/universities/{{ u.id }}/status">
+                <select name="status" onchange="this.form.submit()">
+                  {% for s in ['researching','drafting','ready','submitted','decision'] %}
+                    <option value="{{ s }}" {% if s == u.status %}selected{% endif %}>{{ s }}</option>
+                  {% endfor %}
+                </select>
+              </form>
+            </td>
+            <td>{% if u.application_url %}<a target="_blank" href="{{ u.application_url }}">Open ↗</a>{% else %}<span class="tiny">—</span>{% endif %}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4" class="empty">Add your first university →</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <form class="card form" method="post" action="/universities">
+      <h3>Add university</h3>
+      <label>Name<input required name="name" placeholder="University name" /></label>
+      <label>Country<input name="country" value="United States" /></label>
+      <label>Application deadline<input type="date" name="application_deadline" /></label>
+      <label>Scholarship deadline<input type="date" name="scholarship_deadline" /></label>
+      <label>Application URL<input type="url" name="application_url" placeholder="https://..." /></label>
+      <button>Add to pipeline</button>
+    </form>
+  </div>
+</section>
+
+<section id="scholarships" class="section">
+  <div class="section-heading"><div><p class="eyebrow">MONEY</p><h2>Scholarships</h2></div></div>
+  <div class="split">
+    <div class="card table-wrap">
+      <table>
+        <thead><tr><th>Scholarship</th><th>University</th><th>Deadline</th><th>Amount</th></tr></thead>
+        <tbody>
+        {% for s in scholarships %}
+          <tr>
+            <td><strong>{{ s.name }}</strong>{% if s.form_url %}<br><a target="_blank" href="{{ s.form_url }}">Form ↗</a>{% endif %}</td>
+            <td>{{ s.university_name or 'External' }}</td>
+            <td>{{ s.deadline or 'TBD' }}<br><span class="badge {{ s.deadline_meta.class }}">{{ s.deadline_meta.label }}</span></td>
+            <td>{{ s.amount or 'Varies' }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4" class="empty">No scholarships tracked yet.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <form class="card form" method="post" action="/scholarships">
+      <h3>Add scholarship</h3>
+      <label>University
+        <select name="university_id"><option value="">External / none</option>{% for u in universities %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}</select>
+      </label>
+      <label>Name<input required name="name" /></label>
+      <label>Deadline<input type="date" name="deadline" /></label>
+      <label>Amount<input name="amount" placeholder="$25,000 / Full tuition / Varies" /></label>
+      <label>Form URL<input type="url" name="form_url" /></label>
+      <label>Notes<textarea name="notes" rows="3" placeholder="Separate form? Eligibility?"></textarea></label>
+      <button>Add scholarship</button>
+    </form>
+  </div>
+</section>
+
+<section id="documents" class="section">
+  <div class="section-heading"><div><p class="eyebrow">READINESS</p><h2>Documents</h2></div></div>
+  <div class="documents-grid">
+    {% for d in documents %}
+      <form method="post" action="/documents/{{ d.id }}/toggle" class="card document {% if d.status == 'complete' %}done{% endif %}">
+        <button class="ghost" type="submit"><span class="check">{% if d.status == 'complete' %}✓{% else %}○{% endif %}</span><span><strong>{{ d.name }}</strong><small>{{ d.notes }}</small></span></button>
+      </form>
+    {% endfor %}
+  </div>
+</section>
+
+<section id="agents" class="section">
+  <div class="section-heading"><div><p class="eyebrow">RUFLO</p><h2>Agent task queue</h2></div></div>
+  <div class="split">
+    <div class="card">
+      <div class="agent-list">
+        {% for t in tasks %}
+          <div class="agent-task"><span class="badge {{ 'warning' if t.status == 'queued' else 'success' }}">{{ t.status }}</span><div><strong>{{ t.agent }}</strong><p>{{ t.objective }}</p></div></div>
+        {% else %}<p class="empty">Queue a research or QA task for the agent team.</p>{% endfor %}
+      </div>
+    </div>
+    <form class="card form" method="post" action="/agent-tasks">
+      <h3>Queue agent task</h3>
+      <label>Agent
+        <select name="agent">
+          <option>research-scout</option>
+          <option>scholarship-analyst</option>
+          <option>requirements-auditor</option>
+          <option>essay-critic</option>
+          <option>deadline-planner</option>
+          <option>verification-lead</option>
+        </select>
+      </label>
+      <label>Objective<textarea required name="objective" rows="4" placeholder="Verify the official scholarship deadline and application method for ..."></textarea></label>
+      <label>Extra context<textarea name="payload" rows="3"></textarea></label>
+      <button>Queue task</button>
+      <p class="tiny">Ruflo agents can read the full state from <code>GET /api/context</code>.</p>
+    </form>
+  </div>
+</section>
+{% endblock %}
