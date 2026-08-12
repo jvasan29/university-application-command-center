@@ -1,32 +1,32 @@
 # University Application Command Center
 
-A local-first application tracker designed to work with a **Ruflo multi-agent swarm**.
+A local-first university application tracker with a **Ruflo live-research bridge**.
 
-## What it does
+## What it does now
 
-- Tracks universities, application deadlines, status, and official links
-- Tracks scholarships separately from admissions deadlines
-- Tracks core application documents
-- Queues tasks for specialized AI agents
-- Exposes application state at `GET /api/context` for agent workflows
-- Includes six Ruflo-oriented agent role prompts and a verification-first workflow
+- Tracks universities, deadlines, scholarships, documents, and application status
+- Queues specialized Ruflo research tasks per university
+- Exposes application state through both HTTP and MCP
+- Lets agents claim queued research work
+- Lets agents submit sourced deadline/scholarship proposals automatically
+- Keeps a human approval gate before researched facts become trusted data
+- Stores source URL, evidence, checked date, confidence, and agent identity
 
-## Agent team
+## Live research flow
 
-| Agent | Job |
-|---|---|
-| `research-scout` | Official admissions research |
-| `scholarship-analyst` | Scholarships, forms, eligibility, deadlines |
-| `requirements-auditor` | School-by-school document checklist |
-| `essay-critic` | Essay feedback without replacing student voice |
-| `deadline-planner` | Internal schedule and collision detection |
-| `verification-lead` | Final factual QA gate |
+1. Add a university.
+2. Click **Research with Ruflo**.
+3. Ruflo/Claude agents claim queued tasks through `mcp_server.py`.
+4. Agents research official university sources.
+5. Findings appear under **Research Review**.
+6. Approve or reject each finding.
+7. Approved deadlines and scholarships are written into the main tracker.
 
 ## Run the dashboard
 
 ```bash
 python -m venv .venv
-# Windows: .venv\\Scripts\\activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
 # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app:app --reload
@@ -34,31 +34,55 @@ uvicorn app:app --reload
 
 Open `http://127.0.0.1:8000`.
 
-Optional demo data:
+## Windows Ruflo setup
 
-```bash
-python scripts/seed_demo.py
+After activating your virtual environment:
+
+```powershell
+.\setup-ruflo.ps1
 ```
 
-## Initialize Ruflo
+Or manually:
 
-Install Node.js first, then from this repository:
-
-```bash
-npx ruflo init
+```powershell
+npx ruflo@latest init wizard
+npx ruflo@latest doctor
+claude mcp add uacc -- python mcp_server.py
 ```
 
-Read `ruflo/WORKFLOW.md` for the recommended swarm and orchestration prompt.
+Then read `ruflo/WORKFLOW.md` and paste its research swarm prompt into Claude Code.
 
-## Important design choice
+## Agent team
 
-The MVP uses a **verification gate**. Agents can research and propose facts, but deadlines and eligibility should be checked against official university pages before you rely on them. Admissions rules change by entry year and applicant type.
+| Agent | Job |
+|---|---|
+| `research-scout` | Official admissions deadlines and application links |
+| `scholarship-analyst` | Scholarships, forms, eligibility, deadlines |
+| `requirements-auditor` | School-by-school document checklist |
+| `essay-critic` | Essay feedback without replacing student voice |
+| `deadline-planner` | Internal schedule and collision detection |
+| `verification-lead` | Final factual QA and conflict detection |
 
-## Next upgrades
+## MCP tools exposed to agents
 
-1. OAuth and multi-user profiles
-2. Essay version history UI
-3. Direct Common App / email / calendar integrations where permitted
-4. Source-citation table and automatic stale-source alerts
-5. Ruflo worker that consumes `agent_tasks` and writes results into a review queue
-6. Notifications for 14/30/60-day deadlines
+- `get_application_context`
+- `claim_task`
+- `submit_university_fact`
+- `submit_scholarship`
+- `complete_task`
+- `fail_task`
+
+Agents cannot approve their own research through MCP. Approval stays in the dashboard.
+
+## API endpoints
+
+- `GET /api/context`
+- `POST /api/agent-tasks/claim`
+- `POST /api/agent-tasks/{id}/complete`
+- `POST /api/agent-tasks/{id}/fail`
+- `GET /api/proposals`
+- `POST /api/proposals`
+
+## Safety / accuracy model
+
+Admissions and scholarship information changes annually and can differ for international applicants, specific colleges, and entry cycles. The system therefore separates **agent-proposed research** from **human-approved application data**.
