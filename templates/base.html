@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Uni Application Command Center{% endblock %}</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">AI APPLICATION OPS</p>
+      <h1>University Application Command Center</h1>
+    </div>
+    <div class="pill">Ruflo-ready MVP</div>
+  </header>
+  <nav class="nav">
+    <a href="#overview">Overview</a>
+    <a href="#universities">Universities</a>
+    <a href="#scholarships">Scholarships</a>
+    <a href="#documents">Documents</a>
+    <a href="#agents">Agent Queue</a>
+  </nav>
+  <main>{% block content %}{% endblock %}</main>
+  <footer>Local-first. Verify admissions facts against official university sources before submitting anything.</footer>
+</body>
+</html>
