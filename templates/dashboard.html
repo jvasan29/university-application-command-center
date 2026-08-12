@@ -2,14 +2,14 @@
 {% block content %}
 <section id="overview" class="hero-grid">
   <div class="hero-copy card">
-    <p class="eyebrow">ONE PLACE FOR THE WHOLE CYCLE</p>
-    <h2>Research → shortlist → essays → scholarships → submit.</h2>
-    <p class="muted-text">The dashboard stores application state. Ruflo agents can work against the same state through <code>/api/context</code>.</p>
+    <p class="eyebrow">RESEARCH → VERIFY → APPLY</p>
+    <h2>Let the agent team research. Keep yourself as the approval gate.</h2>
+    <p class="muted-text">Click <strong>Research with Ruflo</strong> on a university. Agents claim those tasks through the MCP bridge and submit sourced findings into the review queue below.</p>
   </div>
   <div class="stats-grid">
     <div class="stat card"><strong>{{ stats.universities }}</strong><span>Universities</span></div>
-    <div class="stat card"><strong>{{ stats.applications_ready }}</strong><span>Ready / submitted</span></div>
-    <div class="stat card"><strong>{{ stats.scholarships }}</strong><span>Scholarships</span></div>
+    <div class="stat card"><strong>{{ stats.pending_proposals }}</strong><span>Research proposals to review</span></div>
+    <div class="stat card"><strong>{{ stats.scholarships }}</strong><span>Approved scholarships</span></div>
     <div class="stat card"><strong>{{ stats.documents_complete }}/{{ stats.documents_total }}</strong><span>Documents complete</span></div>
   </div>
 </section>
@@ -19,7 +19,7 @@
   <div class="split">
     <div class="card table-wrap">
       <table>
-        <thead><tr><th>University</th><th>Application deadline</th><th>Status</th><th>Link</th></tr></thead>
+        <thead><tr><th>University</th><th>Application deadline</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>
         {% for u in universities %}
           <tr>
@@ -34,7 +34,10 @@
                 </select>
               </form>
             </td>
-            <td>{% if u.application_url %}<a target="_blank" href="{{ u.application_url }}">Open ↗</a>{% else %}<span class="tiny">—</span>{% endif %}</td>
+            <td class="actions-cell">
+              <form method="post" action="/universities/{{ u.id }}/research"><button type="submit" class="small-btn">Research with Ruflo</button></form>
+              {% if u.application_url %}<a target="_blank" href="{{ u.application_url }}">Official application ↗</a>{% endif %}
+            </td>
           </tr>
         {% else %}
           <tr><td colspan="4" class="empty">Add your first university →</td></tr>
@@ -54,28 +57,63 @@
   </div>
 </section>
 
+<section id="proposals" class="section">
+  <div class="section-heading"><div><p class="eyebrow">HUMAN-IN-THE-LOOP</p><h2>Research review queue</h2></div></div>
+  <div class="proposal-grid">
+    {% for p in proposals %}
+      <article class="card proposal {% if p.status != 'pending' %}reviewed{% endif %}">
+        <div class="proposal-top">
+          <span class="badge {{ 'warning' if p.status == 'pending' else 'success' if p.status == 'approved' else 'danger' }}">{{ p.status }}</span>
+          <span class="tiny">{{ p.submitted_by }} · confidence {{ '%.0f'|format(p.confidence * 100) }}%</span>
+        </div>
+        <h3>{{ p.university_name or 'External' }}</h3>
+        {% if p.proposal_type == 'university_field' %}
+          <p><strong>{{ p.field_name.replace('_',' ')|title }}</strong></p>
+          <div class="proposed-value">{{ p.proposed_value }}</div>
+        {% else %}
+          <p><strong>{{ p.scholarship_name }}</strong></p>
+          <div class="proposed-value">{{ p.deadline or 'Deadline TBD' }} · {{ p.amount or 'Amount varies' }}</div>
+          {% if p.notes %}<p class="muted-text">{{ p.notes }}</p>{% endif %}
+        {% endif %}
+        {% if p.evidence %}<p class="evidence">{{ p.evidence }}</p>{% endif %}
+        <p class="tiny">Checked: {{ p.checked_at }}</p>
+        <a target="_blank" rel="noopener" href="{{ p.source_url }}">Open official source ↗</a>
+        {% if p.status == 'pending' %}
+          <div class="review-actions">
+            <form method="post" action="/proposals/{{ p.id }}/approve"><button type="submit">Approve</button></form>
+            <form method="post" action="/proposals/{{ p.id }}/reject"><button type="submit" class="danger-btn">Reject</button></form>
+          </div>
+        {% endif %}
+      </article>
+    {% else %}
+      <div class="card empty-panel">No research proposals yet. Queue Ruflo research from a university above.</div>
+    {% endfor %}
+  </div>
+</section>
+
 <section id="scholarships" class="section">
   <div class="section-heading"><div><p class="eyebrow">MONEY</p><h2>Scholarships</h2></div></div>
   <div class="split">
     <div class="card table-wrap">
       <table>
-        <thead><tr><th>Scholarship</th><th>University</th><th>Deadline</th><th>Amount</th></tr></thead>
+        <thead><tr><th>Scholarship</th><th>University</th><th>Deadline</th><th>Amount</th><th>Status</th></tr></thead>
         <tbody>
         {% for s in scholarships %}
           <tr>
-            <td><strong>{{ s.name }}</strong>{% if s.form_url %}<br><a target="_blank" href="{{ s.form_url }}">Form ↗</a>{% endif %}</td>
+            <td><strong>{{ s.name }}</strong>{% if s.form_url %}<br><a target="_blank" href="{{ s.form_url }}">Official page/form ↗</a>{% endif %}</td>
             <td>{{ s.university_name or 'External' }}</td>
             <td>{{ s.deadline or 'TBD' }}<br><span class="badge {{ s.deadline_meta.class }}">{{ s.deadline_meta.label }}</span></td>
             <td>{{ s.amount or 'Varies' }}</td>
+            <td><span class="badge {{ 'success' if s.status == 'verified' else 'warning' }}">{{ s.status }}</span></td>
           </tr>
         {% else %}
-          <tr><td colspan="4" class="empty">No scholarships tracked yet.</td></tr>
+          <tr><td colspan="5" class="empty">No approved scholarships tracked yet.</td></tr>
         {% endfor %}
         </tbody>
       </table>
     </div>
     <form class="card form" method="post" action="/scholarships">
-      <h3>Add scholarship</h3>
+      <h3>Add scholarship manually</h3>
       <label>University
         <select name="university_id"><option value="">External / none</option>{% for u in universities %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}</select>
       </label>
@@ -106,8 +144,8 @@
     <div class="card">
       <div class="agent-list">
         {% for t in tasks %}
-          <div class="agent-task"><span class="badge {{ 'warning' if t.status == 'queued' else 'success' }}">{{ t.status }}</span><div><strong>{{ t.agent }}</strong><p>{{ t.objective }}</p></div></div>
-        {% else %}<p class="empty">Queue a research or QA task for the agent team.</p>{% endfor %}
+          <div class="agent-task"><span class="badge {{ 'warning' if t.status == 'queued' else 'success' if t.status == 'complete' else 'danger' if t.status == 'failed' else 'muted' }}">{{ t.status }}</span><div><strong>{{ t.agent }}</strong><p>{{ t.objective }}</p>{% if t.result %}<p class="tiny">Result: {{ t.result }}</p>{% endif %}</div></div>
+        {% else %}<p class="empty">Queue a research task manually or use “Research with Ruflo” above.</p>{% endfor %}
       </div>
     </div>
     <form class="card form" method="post" action="/agent-tasks">
@@ -125,7 +163,7 @@
       <label>Objective<textarea required name="objective" rows="4" placeholder="Verify the official scholarship deadline and application method for ..."></textarea></label>
       <label>Extra context<textarea name="payload" rows="3"></textarea></label>
       <button>Queue task</button>
-      <p class="tiny">Ruflo agents can read the full state from <code>GET /api/context</code>.</p>
+      <p class="tiny">Connected agents use the local MCP server in <code>mcp_server.py</code> to claim tasks and submit proposals.</p>
     </form>
   </div>
 </section>

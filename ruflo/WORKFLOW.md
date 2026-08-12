@@ -1,47 +1,92 @@
-# Ruflo workflow for the University Application Command Center
+# Ruflo live-research workflow
 
-This project separates **application state** (the FastAPI/SQLite app) from **agent execution** (Ruflo + Claude Code/Codex).
+The dashboard now has a **review-first live research bridge**. Ruflo/Claude agents can claim queued tasks, research official university pages, and submit structured findings directly into the dashboard without directly overwriting trusted data.
 
-## Recommended swarm
+## Architecture
 
-- `research-scout`: gathers official admissions facts
-- `scholarship-analyst`: maps scholarship eligibility and forms
-- `requirements-auditor`: builds per-school checklists
-- `essay-critic`: critiques essays while preserving student voice
-- `deadline-planner`: generates internal action dates
-- `verification-lead`: validates claims before they are trusted
+```text
+Dashboard button
+  -> SQLite agent_tasks
+  -> Ruflo/Claude agent claims task via UACC MCP
+  -> agent researches official university sources
+  -> agent calls submit_university_fact / submit_scholarship
+  -> research_proposals review queue
+  -> human Approve / Reject
+  -> approved fact is written to universities/scholarships
+```
 
-## Full Ruflo install
+## 1. Install Python dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+## 2. Start the dashboard
+
+```bash
+uvicorn app:app --reload
+```
+
+Open `http://127.0.0.1:8000`.
+
+## 3. Initialize Ruflo
+
+```bash
+npx ruflo@latest init wizard
+npx ruflo@latest doctor
+```
+
+Ruflo's full init gives Claude Code the swarm/MCP/hooks infrastructure. After init you can use Claude Code normally while Ruflo coordinates agents.
+
+## 4. Register the dashboard MCP bridge
 
 From the repository root:
 
 ```bash
-npx ruflo init
+claude mcp add uacc -- python mcp_server.py
 ```
 
-Ruflo's full install provides the MCP server, hooks, memory, agent infrastructure and swarm capabilities. After initialization, copy the role prompts in `ruflo/agents/` into whatever agent-definition location the generated Ruflo/Claude setup expects for the installed version.
+If `python` does not point to your virtual environment, use the full interpreter path.
 
-## Suggested orchestration prompt
+## 5. Queue research
+
+In the dashboard, add a university and click **Research with Ruflo**. This queues:
+
+- `research-scout`: application deadlines, scholarship consideration deadline, official application link
+- `scholarship-analyst`: international-undergraduate scholarship opportunities
+- `verification-lead`: conflict/staleness QA
+
+## 6. Run the research swarm
+
+Use this prompt in Claude Code after Ruflo is initialized:
 
 ```text
-Create a hierarchical swarm for university-application operations.
-Coordinator: verification-lead.
-Workers: research-scout, scholarship-analyst, requirements-auditor, essay-critic, deadline-planner.
-Read current application state from http://127.0.0.1:8000/api/context.
-Never treat admissions facts as verified unless they come from official university sources.
-For research tasks, store source URL and date checked.
-Return proposed database changes as structured JSON for human review before writing them.
+Use Ruflo to process University Application Command Center research tasks.
+
+Create a hierarchical research swarm with research-scout, scholarship-analyst, and verification-lead roles.
+Use the UACC MCP tools.
+
+For each worker role:
+1. Call claim_task with the role name.
+2. If no task exists, report that role idle.
+3. Parse the task payload to identify the university_id and university.
+4. Research the task using official university-controlled websites only for factual admissions/scholarship claims.
+5. For each supported university fact, call submit_university_fact with the exact source URL and concise evidence.
+6. For each scholarship, call submit_scholarship with deadline, amount, form URL, eligibility/application notes, source URL, and evidence.
+7. Never submit a deadline unless the official page clearly applies to the relevant undergraduate entry cycle/applicant type. If ambiguous, do not guess; describe the ambiguity in the task result.
+8. When finished, call complete_task.
+
+Do not directly edit the SQLite database or application source. All researched facts must enter through UACC MCP proposal tools so they require human approval.
 ```
 
-## Operating loop
+## Human approval gate
 
-1. Add universities and tasks in the dashboard.
-2. Start the app: `uvicorn app:app --reload`.
-3. Initialize Ruflo: `npx ruflo init`.
-4. Ask the swarm to process queued tasks.
-5. Verify results with `verification-lead`.
-6. Enter approved facts into the dashboard.
-7. Run `deadline-planner` weekly or after any deadline change.
+Open **Research Review** in the dashboard. Every proposal contains university, proposed field/scholarship, official source URL, evidence, checked date, and agent confidence.
 
-## Why proposed changes are review-first
-Admissions and scholarship information is high-impact and changes annually. The MVP deliberately does not let an autonomous agent overwrite trusted deadline data without review.
+**Approve** applies it to the trusted application data. **Reject** preserves the audit trail but does not change application data.
+
+## Supported automatic proposals
+
+University fields: `application_deadline`, `scholarship_deadline`, `application_url`, `notes`.
+
+Scholarships are added as verified records only after approval.
